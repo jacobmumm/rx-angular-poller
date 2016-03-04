@@ -27,8 +27,11 @@ app.controller('Ctrl', function Ctrl($scope, $http, rx){
   
   var poller = new DsPoller(function () {return $http.get('http://localhost:3333/cases')});
   
-  poller.poller$.subscribe(function (stuff) {
-    console.log('fetch #', ++fetch);
+  poller.poller$.subscribe(function (items) {
+    console.log('fetch #', ++fetch, items);
+    $scope.$apply(function(){
+      $scope.items = items.data;        
+    });
   }, function (err) {
     debugger
   });
