@@ -49,7 +49,11 @@ app.get('/cases', function(req, res) {
     res.sendStatus(500);
   } else if(action == 5 || action == 6) {
     setTimeout(function () {
-      res.sendStatus(500);
+      if (action == 5) {
+        res.sendStatus(500);
+      } else {
+        res.sendStatus(res.json(cases.slice(count)));
+      }
     }, 3000)
   } else {
     res.json(cases.slice(count));
