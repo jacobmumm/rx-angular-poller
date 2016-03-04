@@ -5,12 +5,12 @@ app.controller('Ctrl', function Ctrl($scope, $http, rx){
   $scope.time = new Date();
   
   function DsPoller (action, period) {
-    period = period || 1000;
+    period = period || 5000;
     
     this.period$ = new rx.Subject();
     
     this.interval$ = this.period$.startWith(period)
-      .flatMapLatest(function (t) {return rx.Observable.interval(t)});
+      .flatMapLatest(function (t) {return rx.Observable.timer(0, t)});
       
     this.poller$ = this.interval$.flatMapLatest(function () {
       return rx.Observable.fromPromise(action())
