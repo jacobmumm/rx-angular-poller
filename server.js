@@ -47,6 +47,10 @@ app.get('/cases', function(req, res) {
   var count = Math.floor(Math.random()*10);
   if(action == 4) {
     res.sendStatus(500);
+  } else if(action == 5 || action == 6) {
+    setTimeout(function () {
+      res.sendStatus(500);
+    }, 3000)
   } else {
     res.json(cases.slice(count));
   }
