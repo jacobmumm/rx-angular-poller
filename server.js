@@ -52,7 +52,7 @@ app.get('/cases', function(req, res) {
       if (action == 5) {
         res.sendStatus(500);
       } else {
-        res.sendStatus(res.json(cases.slice(count)));
+        res.json(cases.slice(count));
       }
     }, 3000)
   } else {
@@ -63,5 +63,5 @@ app.get('/cases', function(req, res) {
 
 
 app.listen(3333, function () {
-  console.log('Example app listening on port 3000!');
+  console.log('Example app listening on port 3333!');
 });
