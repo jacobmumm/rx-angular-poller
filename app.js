@@ -4,21 +4,32 @@ app.controller('Ctrl', function Ctrl($scope, $http, rx){
   
   $scope.time = new Date();
   
-  function DsPoller (action, period) {
-    period = period || 5000;
+  function DsPoller (action, config) {
+    var delay, interval, initInterval;
+    delay = config && config.delay || 0;
+    initInterval = interval = config && config.interval || 5000;
     
-    this.period$ = new rx.Subject();
-    
-    this.interval$ = this.period$.startWith(period)
-      .flatMapLatest(function (t) {return rx.Observable.timer(0, t)});
-      
-    this.poller$ = this.interval$.flatMapLatest(function () {
-      return rx.Observable.fromPromise(action())
-        .catch(function (err) {
-          return rx.Observable.empty();
+    this.poller$ = rx.Observable.create(function (observer) {
+      var nextPoll=function(obs) {
+        rx.Observable.timer(interval).subscribe(function(){
+          rx.Observable.fromPromise(action())
+            .map(function (x){ return x.data; })
+            .subscribe(function(d) {
+                obs.onNext(d);
+                nextPoll(obs);
+                interval = initInterval;
+            }, function(e) {
+              nextPoll(obs);
+              interval = interval * 2;
+            });
         });
-    });
+      };        
+      
+      
+      nextPoll(observer);
     
+    });
+
   }
   DsPoller.prototype.setPeriod = function(time) {
     this.period$.onNext(time);
@@ -30,10 +41,10 @@ app.controller('Ctrl', function Ctrl($scope, $http, rx){
   poller.poller$.subscribe(function (items) {
     console.log('fetch #', ++fetch, items);
     $scope.$apply(function(){
-      $scope.items = items.data;        
+      $scope.items = items;        
     });
   }, function (err) {
-    debugger
+    console.log('subscribe error', err);
   });
   
   // rx.Observable.interval(1000)
