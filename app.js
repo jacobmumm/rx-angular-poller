@@ -5,30 +5,31 @@ app.controller('Ctrl', function Ctrl($scope, $http, rx){
   $scope.time = new Date();
   
   function DsPoller (action, config) {
-    var delay, interval, initInterval;
+    var delay, interval, initInterval, maxInterval;
     delay = config && config.delay || 0;
     initInterval = interval = config && config.interval || 5000;
+    maxInterval = config && config.maxInterval || 300000; //5min
     
-    this.poller$ = rx.Observable.create(function (observer) {
-      var nextPoll=function(obs) {
-        rx.Observable.timer(interval).subscribe(function(){
+    this.poller$ = rx.Observable.create(function(observer) {
+        var nextPoll = function(obs) {
           rx.Observable.fromPromise(action())
             .map(function (x){ return x.data; })
-            .subscribe(function(d) {
-                obs.onNext(d);
-                nextPoll(obs);
-                interval = initInterval;
+            .subscribe(function(d) {       
+                // pass promise up to parent observable  
+                observer.onNext(d);
+                
+                // reset interval in case previous call was an error
+                interval = initInterval;   
+                setTimeout(function(){nextPoll(obs);}, interval);
             }, function(e) {
-              nextPoll(obs);
-              interval = interval * 2;
+              // push interval higher (exponential backoff)
+              interval = interval < maxInterval ? interval * 2 : maxInterval;
+              setTimeout(function(){nextPoll(obs);}, interval);
+
             });
-        });
-      };        
-      
-      
-      nextPoll(observer);
-    
-    });
+        };
+        nextPoll(observer);
+    }); 
 
   }
   DsPoller.prototype.setPeriod = function(time) {
@@ -38,6 +39,8 @@ app.controller('Ctrl', function Ctrl($scope, $http, rx){
   
   var poller = new DsPoller(function () {return $http.get('http://localhost:3333/cases')});
   
+  
+  //poller.poller$.subscribe(function(){});
   poller.poller$.subscribe(function (items) {
     console.log('fetch #', ++fetch, items);
     $scope.$apply(function(){
