@@ -6,8 +6,9 @@ app.controller('Ctrl', function Ctrl($scope, $http, rx){
   
   function DsPoller (action, config) {
     var delay, interval, initInterval, maxInterval;
+    
     delay = config && config.delay || 0;
-    initInterval = interval = config && config.interval || 5000;
+    interval = initInterval = config && config.interval || 5000;
     maxInterval = config && config.maxInterval || 300000; //5min
     
     this.poller$ = rx.Observable.create(function(observer) {
@@ -28,7 +29,7 @@ app.controller('Ctrl', function Ctrl($scope, $http, rx){
 
             });
         };
-        nextPoll(observer);
+        setTimeout(function(){ nextPoll(observer); }, delay);
     }); 
 
   }
