@@ -6,12 +6,38 @@ app.controller('Ctrl', function Ctrl($scope, $http, rx){
   
   function DsPoller (action, config) {
     var delay, interval, initInterval, maxInterval;
-    
+
     delay = config && config.delay || 0;
     interval = initInterval = config && config.interval || 5000;
     maxInterval = config && config.maxInterval || 300000; //5min
     
     this.poller$ = rx.Observable.create(function(observer) {
+
+      // approach with expand from stackoverflow
+      /**
+      function executeAction() {
+        return rx.Observable.fromPromise(action());
+      }
+      function computeDelay(error) {
+        if (error) { return interval *= 2; }
+        return interval = initInterval;
+      }
+      
+      executeAction()
+        .expand(function(x) {
+          console.log('expanding', x);
+          observer.onNext(x.data);
+          console.log(x);
+          return rx.Observable.return({})
+            .delay(3000)
+            .flatMap(function(){
+              console.log('flat mapping');
+              return executeAction();
+            });
+        }).subscribe(function(z){ console.log('sub', z); });
+        **/
+        
+        // approach using setTimeout
         var nextPoll = function(obs) {
           rx.Observable.fromPromise(action())
             .map(function (x){ return x.data; })
@@ -47,8 +73,6 @@ app.controller('Ctrl', function Ctrl($scope, $http, rx){
     $scope.$apply(function(){
       $scope.items = items;        
     });
-  }, function (err) {
-    console.log('subscribe error', err);
   });
   
   // rx.Observable.interval(1000)
