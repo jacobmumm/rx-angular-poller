@@ -1,97 +1,115 @@
 var app = angular.module('app', ['rx']);
-app.controller('Ctrl', function Ctrl($scope, $http, rx){
-  var fetch = 0;
-  
-  $scope.time = new Date();
-  
-  function DsPoller (action, config) {
-    var delay, interval, initInterval, maxInterval;
+app.controller('Ctrl', function Ctrl($scope, $http, DsPoller){
 
-    delay = config && config.delay || 0;
-    interval = initInterval = config && config.interval || 5000;
-    maxInterval = config && config.maxInterval || 300000; //5min
-    
-    this.poller$ = rx.Observable.create(function(observer) {
+  var poller = new DsPoller('cases');
 
-      // approach with expand from stackoverflow
-      /**
-      function executeAction() {
-        return rx.Observable.fromPromise(action());
-      }
-      function computeDelay(error) {
-        if (error) { return interval *= 2; }
-        return interval = initInterval;
-      }
-      
-      executeAction()
-        .expand(function(x) {
-          console.log('expanding', x);
-          observer.onNext(x.data);
-          console.log(x);
-          return rx.Observable.return({})
-            .delay(3000)
-            .flatMap(function(){
-              console.log('flat mapping');
-              return executeAction();
-            });
-        }).subscribe(function(z){ console.log('sub', z); });
-        **/
-        
-        // approach using setTimeout
-        var nextPoll = function(obs) {
-          rx.Observable.fromPromise(action())
-            .map(function (x){ return x.data; })
-            .subscribe(function(d) {       
-                // pass promise up to parent observable  
-                observer.onNext(d);
-                
-                // reset interval in case previous call was an error
-                interval = initInterval;   
-                setTimeout(function(){nextPoll(obs);}, interval);
-            }, function(e) {
-              // push interval higher (exponential backoff)
-              interval = interval < maxInterval ? interval * 2 : maxInterval;
-              setTimeout(function(){nextPoll(obs);}, interval);
+  poller.setConfig({
+    delay: 0,
+    interval: 2000
+  });
 
-            });
-        };
-        setTimeout(function(){ nextPoll(observer); }, delay);
-    }); 
+  poller.setAction(function () { return $http.get('http://localhost:3333/cases')});
 
-  }
-  DsPoller.prototype.setPeriod = function(time) {
-    this.period$.onNext(time);
-  }
-  
-  
-  var poller = new DsPoller(function () {return $http.get('http://localhost:3333/cases')});
-  
-  
-  //poller.poller$.subscribe(function(){});
-  poller.poller$.subscribe(function (items) {
-    console.log('fetch #', ++fetch, items);
+  poller.setHandler(function(res) {
     $scope.$apply(function(){
-      $scope.items = items;        
+      $scope.items = res;
     });
   });
   
-  // rx.Observable.interval(1000)
-  //   .take(10)
-  //   .flatMap(function(){
-  //     var subject = new rx.Subject();
-  //     subject.onNext($http.get('http://localhost:3333/cases'));
-  //     return subject;
-  //   }).subscribe(function(items) {
-  //     console.log('fetch #', ++fetch);
-  //     debugger
+  poller.start();
+  
+  setTimeout(function(){
+    // not really working yet
+    poller.stop();
+  }, 20000);
+
+});
+
+app.provider('DsPoller', function() {
+  
+  return {
+    _pollers: [],
+    $get: function(rx) {
+      var DsPoller, pollers;
+      pollers = this._pollers;
       
-  //     $scope.$apply(function(){
-  //       $scope.items = items;        
-  //     });
-  //   }, function (err) {
-  //     debugger
-  //   }, function (err) {
-  //     debugger
-  //   });
-    
+      return DsPoller = (function () {
+        
+        DsPoller.get = function(group) {
+          return pollers[group];
+        }
+
+        function DsPoller (group, config) {
+
+          pollers[group] = this;
+
+          this.setConfig(config);
+          
+          this.action$ = function(){}
+          this.handler$ = function(){}
+          
+          var _this = this;
+
+          function computeInterval(error) {
+            if (error) {
+              _this.interval$ = _this.interval$ < _this.maxInterval$ ? _this.interval$ * 2 : _this.maxInterval$;
+            } else {
+              _this.interval$ = _this.initInterval$;
+            }
+            return _this.interval$;
+          }
+          
+          function executeAction() {
+            return rx.Observable.fromPromise(_this.action$());
+          }
+          
+          this.poller$ = rx.Observable.create(function(observer) {
+          
+              // approach using setTimeout
+              var nextPoll = function(obs) {
+                executeAction()
+                  .subscribe(function(d) {       
+                      // pass promise up to parent observable  
+                      observer.onNext(d.data);
+                      
+                      rx.Observable.timer(computeInterval()).do(function(){ nextPoll(obs); }).subscribe();
+                  }, function(e) {
+                    rx.Observable.timer(computeInterval(true)).do(function(){ nextPoll(obs); }).subscribe();
+                  });
+              };
+
+              rx.Observable.timer(_this.delay$).do(function(){ nextPoll(observer); }).subscribe();
+          });
+
+        }
+      
+        DsPoller.prototype.setConfig = function(config) {
+          this.delay$ = config && config.delay || 0;
+          this.interval$ = this.initInterval$ = config && config.interval || 5000;
+          this.maxInterval$ = config && config.maxInterval || 300000;
+        }
+        
+        DsPoller.prototype.setAction = function(action) {
+          this.action$ = action;
+        }
+
+        DsPoller.prototype.setHandler = function(handler) {
+          this.handler$ = handler;
+        }
+        
+        DsPoller.prototype.start = function() {
+          this.unsubscribe$ = this.poller$.subscribe(this.handler$);
+        }
+        
+        DsPoller.prototype.stop = function() {
+          if (typeof this.unsubscribe$ == 'object') {
+            this.unsubscribe$.dispose();
+          }
+        }
+      
+        return DsPoller;
+      })();   
+    }
+  };
+
 });
