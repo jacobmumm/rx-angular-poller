@@ -4,7 +4,6 @@ app.controller('Ctrl', function Ctrl($scope, $http, DsPoller){
   var poller = new DsPoller('cases');
 
   poller.setConfig({
-    delay: 0,
     interval: 2000
   });
 
@@ -16,12 +15,12 @@ app.controller('Ctrl', function Ctrl($scope, $http, DsPoller){
     });
   });
   
-  poller.start();
-  
-  setTimeout(function(){
+  //poller.start();
+  window.poller = poller;
+  /*setTimeout(function(){
     // not really working yet
     poller.stop();
-  }, 20000);
+  }, 20000);*/
 
 });
 
@@ -81,7 +80,6 @@ app.provider('DsPoller', function() {
         }
       
         DsPoller.prototype.setConfig = function(config) {
-          this.delay$ = config && config.delay || 0;
           this.interval$ = this.initInterval$ = config && config.interval || 5000;
           this.maxInterval$ = config && config.maxInterval || 300000;
         }
@@ -94,18 +92,21 @@ app.provider('DsPoller', function() {
           this.handler$ = handler;
         }
         
-        DsPoller.prototype.start = function() {
+        DsPoller.prototype.start = function(immediate) {
+          if (immediate) { 
+            this.delay$ = 0; 
+          } else {
+            this.delay$ = this.interval$;
+          }
           this.connection$ = this.poller$.connect();
           this.unsubscribe$ = this.poller$.subscribe(this.handler$);
           this.running$ = true;
         }
         
         DsPoller.prototype.stop = function() {
-          if (typeof this.unsubscribe$ == 'object') {
-            this.connection$.dispose();
-            this.unsubscribe$.dispose();
-            this.running$ = false;
-          }
+          this.connection$.dispose();
+          this.unsubscribe$.dispose();
+          this.running$ = false;
         }
         
         DsPoller.prototype.destroy = function() {
