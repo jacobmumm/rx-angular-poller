@@ -8,9 +8,10 @@ app.controller('Ctrl', function Ctrl($scope, $http, DsPoller){
     interval: 2000
   });
 
-  poller.setAction(function () { return $http.get('http://localhost:3333/cases')});
+  poller.setAction(function () { return $http.get('http://localhost:8888/cases')});
 
   poller.setHandler(function(res) {
+    console.log('handler', res);
     $scope.$apply(function(){
       $scope.items = res;
     });
@@ -34,10 +35,6 @@ app.provider('DsPoller', function() {
       pollers = this._pollers;
       
       return DsPoller = (function () {
-        
-        DsPoller.get = function(group) {
-          return pollers[group];
-        }
 
         function DsPoller (group, config) {
 
@@ -79,7 +76,7 @@ app.provider('DsPoller', function() {
               };
 
               rx.Observable.timer(_this.delay$).do(function(){ nextPoll(observer); }).subscribe();
-          });
+          }).publish();
 
         }
       
@@ -98,13 +95,19 @@ app.provider('DsPoller', function() {
         }
         
         DsPoller.prototype.start = function() {
+          this.connection$ = this.poller$.connect();
           this.unsubscribe$ = this.poller$.subscribe(this.handler$);
         }
         
         DsPoller.prototype.stop = function() {
           if (typeof this.unsubscribe$ == 'object') {
+            this.connection$.dispose();
             this.unsubscribe$.dispose();
           }
+        }
+        
+        DsPoller.get = function(group) {
+          return pollers[group];
         }
       
         return DsPoller;
