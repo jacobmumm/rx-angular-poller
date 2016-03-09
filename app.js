@@ -36,7 +36,7 @@ app.provider('DsPoller', function() {
       return DsPoller = (function () {
 
         function DsPoller (group, config) {
-
+          this.group = group;
           pollers[group] = this;
 
           this.setConfig(config);
@@ -108,9 +108,15 @@ app.provider('DsPoller', function() {
           }
         }
         
+        DsPoller.prototype.destroy = function() {
+          this.stop();
+          delete pollers[this.group];
+        }
+        
         DsPoller.get = function(group) {
           return pollers[group];
         }
+        
       
         return DsPoller;
       })();   
