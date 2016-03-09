@@ -11,7 +11,6 @@ app.controller('Ctrl', function Ctrl($scope, $http, DsPoller){
   poller.setAction(function () { return $http.get('http://localhost:8888/cases')});
 
   poller.setHandler(function(res) {
-    console.log('handler', res);
     $scope.$apply(function(){
       $scope.items = res;
     });
@@ -62,16 +61,17 @@ app.provider('DsPoller', function() {
           
           this.poller$ = rx.Observable.create(function(observer) {
           
-              // approach using setTimeout
               var nextPoll = function(obs) {
                 executeAction()
-                  .subscribe(function(d) {       
-                      // pass promise up to parent observable  
+                  .subscribe(function(d) {         
                       observer.onNext(d.data);
-                      
-                      rx.Observable.timer(computeInterval()).do(function(){ nextPoll(obs); }).subscribe();
+                      if (_this.running$) {
+                        rx.Observable.timer(computeInterval()).do(function(){ nextPoll(obs); }).subscribe();
+                      }
                   }, function(e) {
-                    rx.Observable.timer(computeInterval(true)).do(function(){ nextPoll(obs); }).subscribe();
+                    if (_this.running$) {
+                      rx.Observable.timer(computeInterval(true)).do(function(){ nextPoll(obs); }).subscribe();
+                    }
                   });
               };
 
@@ -97,12 +97,14 @@ app.provider('DsPoller', function() {
         DsPoller.prototype.start = function() {
           this.connection$ = this.poller$.connect();
           this.unsubscribe$ = this.poller$.subscribe(this.handler$);
+          this.running$ = true;
         }
         
         DsPoller.prototype.stop = function() {
           if (typeof this.unsubscribe$ == 'object') {
             this.connection$.dispose();
             this.unsubscribe$.dispose();
+            this.running$ = false;
           }
         }
         
