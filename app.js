@@ -4,7 +4,7 @@ app.controller('Ctrl', function Ctrl($scope, $http, DsPoller){
   var poller = new DsPoller('cases');
 
   poller.setConfig({
-    interval: 2000
+    interval: 3000
   });
 
   poller.setAction(function () { return $http.get('http://localhost:8888/cases')});
@@ -15,7 +15,7 @@ app.controller('Ctrl', function Ctrl($scope, $http, DsPoller){
     });
   });
   
-  //poller.start();
+  poller.start();
   window.poller = poller;
   /*setTimeout(function(){
     // not really working yet
@@ -38,75 +38,65 @@ app.provider('DsPoller', function() {
           this.group = group;
           pollers[group] = this;
 
+         
           this.setConfig(config);
           
-          this.action$ = function(){}
-          this.handler$ = function(){}
+          this.action = function(){}
+          this.handler = function(){}
           
           var _this = this;
 
           function computeInterval(error) {
             if (error) {
-              _this.interval$ = _this.interval$ < _this.maxInterval$ ? _this.interval$ * 2 : _this.maxInterval$;
+              _this.interval = _this.interval < _this.maxInterval ? _this.interval * 2 : _this.maxInterval;
             } else {
-              _this.interval$ = _this.initInterval$;
+              _this.interval = _this.initinterval;
             }
-            return _this.interval$;
+            return _this.interval;
           }
           
-          function executeAction() {
-            return rx.Observable.fromPromise(_this.action$());
-          }
-          
-          this.poller$ = rx.Observable.create(function(observer) {
-          
-              var nextPoll = function(obs) {
-                executeAction()
-                  .subscribe(function(d) {         
-                      observer.onNext(d.data);
-                      if (_this.running$) {
-                        rx.Observable.timer(computeInterval()).do(function(){ nextPoll(obs); }).subscribe();
-                      }
-                  }, function(e) {
-                    if (_this.running$) {
-                      rx.Observable.timer(computeInterval(true)).do(function(){ nextPoll(obs); }).subscribe();
-                    }
-                  });
-              };
-
-              rx.Observable.timer(_this.delay$).do(function(){ nextPoll(observer); }).subscribe();
-          }).publish();
-
+          this.poller$ = rx.Observable.fromPromise(function(){ return _this.action(); })
+            .retryWhen(function(errors){
+              return errors.scan(function(acc, x) { return acc + x; }, 0)
+                .flatMap(function(x){ 
+                  return rx.Observable.timer(computeInterval(true));
+                });
+            })
+            .repeatWhen(function(notification){
+              return notification
+                .scan(function(acc, x) { return acc + x; }, 0)
+                .flatMap(function(x){ 
+                  return rx.Observable.timer(computeInterval());
+                });
+            });
         }
       
         DsPoller.prototype.setConfig = function(config) {
-          this.interval$ = this.initInterval$ = config && config.interval || 5000;
-          this.maxInterval$ = config && config.maxInterval || 300000;
+          this.setInterval(config && config.interval || 5000);
+          this.maxInterval = config && config.maxInterval || 300000;
+        }
+        
+        DsPoller.prototype.setInterval = function(int) {
+          this.interval = this.initinterval = int;
         }
         
         DsPoller.prototype.setAction = function(action) {
-          this.action$ = action;
+          this.action = action;
         }
 
         DsPoller.prototype.setHandler = function(handler) {
-          this.handler$ = handler;
+          this.handler = handler;
         }
         
-        DsPoller.prototype.start = function(immediate) {
-          if (immediate) { 
-            this.delay$ = 0; 
-          } else {
-            this.delay$ = this.interval$;
-          }
-          this.connection$ = this.poller$.connect();
-          this.unsubscribe$ = this.poller$.subscribe(this.handler$);
-          this.running$ = true;
+        DsPoller.prototype.start = function(forceStart) {
+          var _this = this;
+          rx.Observable.timer(forceStart ? 0 : this.interval).subscribe(function(){
+            _this.unsubscribe$ = _this.poller$.subscribe(this.handler);
+          });
         }
         
         DsPoller.prototype.stop = function() {
-          this.connection$.dispose();
           this.unsubscribe$.dispose();
-          this.running$ = false;
         }
         
         DsPoller.prototype.destroy = function() {
