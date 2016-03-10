@@ -4,7 +4,7 @@ app.controller('Ctrl', function Ctrl($scope, $http, DsPoller){
   var poller = new DsPoller('cases');
 
   poller.setConfig({
-    interval: 2000
+    interval: 3000
   });
 
   poller.setAction(function () { return $http.get('http://localhost:8888/cases')});
@@ -15,7 +15,7 @@ app.controller('Ctrl', function Ctrl($scope, $http, DsPoller){
     });
   });
   
-  //poller.start();
+  poller.start();
   window.poller = poller;
   /*setTimeout(function(){
     // not really working yet
@@ -46,6 +46,7 @@ app.provider('DsPoller', function() {
           var _this = this;
 
           function computeInterval(error) {
+            console.log('computing', error);
             if (error) {
               _this.interval$ = _this.interval$ < _this.maxInterval$ ? _this.interval$ * 2 : _this.maxInterval$;
             } else {
@@ -58,7 +59,39 @@ app.provider('DsPoller', function() {
             return rx.Observable.fromPromise(_this.action$());
           }
           
-          this.poller$ = rx.Observable.create(function(observer) {
+        
+          this.poller$ = rx.Observable.fromPromise(function(){ 
+            console.log('*******'); 
+            return _this.action$();
+          })
+            .retryWhen(function(err){
+              console.log('retry', err);
+              //return err.delay(computeInterval(true));
+              
+              return rx.Observable.range(1, 100).zip(err).flatMap(function () {
+                return rx.Observable.timer(computeInterval(true));
+              });
+              /*return err.do(function(){
+                console.log("delay retry");
+                return rx.Observable.timer(computeInterval(true));
+              });*/
+            })
+            .repeatWhen(function(notification){
+              console.log('repeat');
+              //return notification.do(function(){
+              return rx.Observable.range(1, 100).zip(notification).flatMap(function () {
+                return notification.delay(_this.initInterval$);
+              });
+              //});
+              
+              //return notification.delay(_this.initInterval);
+            });
+            
+
+
+          /*this.poller$ = rx.Observable.create(function(observer) {
+
+            
           
               var nextPoll = function(obs) {
                 executeAction()
@@ -75,7 +108,7 @@ app.provider('DsPoller', function() {
               };
 
               rx.Observable.timer(_this.delay$).do(function(){ nextPoll(observer); }).subscribe();
-          }).publish();
+          }).publish();*/
 
         }
       
@@ -98,13 +131,13 @@ app.provider('DsPoller', function() {
           } else {
             this.delay$ = this.interval$;
           }
-          this.connection$ = this.poller$.connect();
+          //this.connection$ = this.poller$.connect();
           this.unsubscribe$ = this.poller$.subscribe(this.handler$);
           this.running$ = true;
         }
         
         DsPoller.prototype.stop = function() {
-          this.connection$.dispose();
+          //this.connection$.dispose();
           this.unsubscribe$.dispose();
           this.running$ = false;
         }

@@ -21,7 +21,8 @@ app.get('/', function (req, res) {
 app.get('/cases', function(req, res) {
   var action = Math.ceil(Math.random()*10);
   var count = Math.floor(Math.random()*10);
-  if(action == 4) {
+  
+  if(action <= 4) {
     res.sendStatus(500);
   } else if(action == 5 || action == 6) {
     setTimeout(function () {
